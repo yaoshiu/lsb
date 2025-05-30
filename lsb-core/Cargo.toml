@@ -7,7 +7,7 @@ edition = "2024"
 path = "src/lib.rs"
 
 [[bin]]
-name = "main"
+name = "lsb-rs"
 path = "src/main.rs"
 
 [dependencies]
