@@ -1,0 +1,20 @@
+[package]
+name = "lsb-py"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "lsb_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+# The impure blake3 dumps python core
+blake3 = { version = "1.8.2", features = ["pure"] }
+lsb-core = { version = "0.1.0", path = "../lsb-core" }
+pyo3 = "0.24.0"
+pyo3-log = "0.12.4"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
