@@ -24,7 +24,7 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [
-            self.overlay
+            self.overlays.default
           ];
         };
 
@@ -37,6 +37,7 @@
           combine [
             stable.toolchain
             targets.wasm32-unknown-unknown.stable.rust-std
+            targets.x86_64-unknown-linux-musl.stable.rust-std
           ];
 
         wasm-pack = pkgs.wasm-pack.overrideAttrs (
@@ -69,13 +70,15 @@
           ];
         };
 
-        packages = {
+        packages = rec {
           lsb-py = pkgs.python3Packages.lsb-py;
+          lsb-core = pkgs.lsb-core;
+          default = lsb-core;
         };
       }
     )
     // {
-      overlay = final: prev: rec {
+      overlays.default = final: prev: rec {
         python3 = prev.python3.override {
           packageOverrides = final: prev: {
             lsb-py = final.callPackage ./lsb-py { };

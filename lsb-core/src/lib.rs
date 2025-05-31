@@ -19,7 +19,7 @@ pub mod error;
 /// Module for hashing functionalities used in steganography.
 pub mod hash;
 
-use std::io::Cursor;
+use std::{cmp::Ordering, io::Cursor};
 
 use error::{StegError, StegResult};
 use hash::Hash;
@@ -29,6 +29,7 @@ use image::ImageReader;
 use log::debug;
 use rand::{prelude::*, seq::index::sample};
 use rand_pcg::Pcg64Mcg;
+use rayon::prelude::*;
 
 /// The number of bits in a byte.
 const BITS_PER_BYTE: usize = 8;
@@ -47,6 +48,8 @@ const LOSSLESS_FORMATS: [ImageFormat; 10] = [
     ImageFormat::Farbfeld,
     ImageFormat::Qoi,
 ];
+/// The size of chunks to process in parallel operations, in bytes.
+const CHUNK_SIZE: usize = 1024;
 
 /// Embeds data into a container image using LSB steganography.
 ///
@@ -145,18 +148,21 @@ pub fn embed(
 
     let container_reader = ImageReader::new(Cursor::new(container)).with_guessed_format()?;
 
-    let mut container = container_reader.decode()?.to_rgb8();
+    let mut image = container_reader.decode()?.to_rgb8();
 
-    let width = container.width() as usize;
-    let height = container.height() as usize;
+    let width = image.width() as usize;
+    let height = image.height() as usize;
 
     // Potential overflow when calculating width_bits
-    let width_bits = width.checked_mul(EMBEDDABLE_CHANNELS)
+    let width_bits = width
+        .checked_mul(EMBEDDABLE_CHANNELS)
         .and_then(|res| res.checked_mul(lsbs))
-        .ok_or_else(|| StegError::CalculationOverflow(format!(
+        .ok_or_else(|| {
+            StegError::CalculationOverflow(format!(
             "Overflow calculating width_bits: width ({}) * EMBEDDABLE_CHANNELS ({}) * lsbs ({})",
             width, EMBEDDABLE_CHANNELS, lsbs
-        )))?;
+        ))
+        })?;
 
     // Potential overflow when calculating capacity_bits
     let capacity_bits = width_bits.checked_mul(height).ok_or_else(|| {
@@ -185,42 +191,55 @@ pub fn embed(
     // The `amount` parameter must be the same as `total_len_bits` for reproducibility
     let order = sample(&mut rng, capacity_bits, capacity_bits);
 
-    for (byte_index, &byte) in total.iter().enumerate() {
-        for bit_offset in 0..BITS_PER_BYTE {
-            let bit = (byte >> (BITS_PER_BYTE - 1 - bit_offset)) & 1;
+    let mut inverse_ord = order
+        .iter()
+        .take(total_len_bits)
+        .enumerate()
+        .map(|(i, x)| (x, i))
+        .collect::<Vec<_>>();
+    inverse_ord.par_sort_by_key(|(x, _)| *x);
 
-            // Potential overflow when calculating bit_index
-            let bit_index_sequential = byte_index.checked_mul(BITS_PER_BYTE)
-                .and_then(|res| res.checked_add(bit_offset))
-                .ok_or_else(|| StegError::CalculationOverflow(format!(
-                    "Overflow calculating sequential bit_index: byte_index ({}) * BITS_PER_BYTE ({}) + bit_offset ({})",
-                    byte_index, BITS_PER_BYTE, bit_offset
-                )))?;
+    image
+        .par_chunks_mut(CHUNK_SIZE)
+        .enumerate()
+        .for_each(|(index, chunk)| {
+            let start = index * CHUNK_SIZE * lsbs;
+            let end = start + CHUNK_SIZE * lsbs - 1; // The end should be inclusive so that
+            // the upper bound is correct
 
-            let bit_index = order.index(bit_index_sequential);
+            let lower = inverse_ord
+                .binary_search_by(|&(x, _)| match x.cmp(&start) {
+                    Ordering::Equal => Ordering::Greater,
+                    ord => ord,
+                })
+                .unwrap_err();
+            let upper = inverse_ord
+                .binary_search_by(|&(x, _)| match x.cmp(&end) {
+                    Ordering::Equal => Ordering::Less,
+                    ord => ord,
+                })
+                .unwrap_err();
 
-            let y = bit_index / width_bits;
+            for (bit_index, bit_index_seq) in &inverse_ord[lower..upper] {
+                let byte_index = bit_index_seq / BITS_PER_BYTE;
+                let bit_offset = bit_index_seq % BITS_PER_BYTE;
 
-            let x_bit = bit_index % width_bits;
-            let x = x_bit / (EMBEDDABLE_CHANNELS * lsbs);
+                let byte = total[byte_index];
+                let bit = (byte >> (BITS_PER_BYTE - 1 - bit_offset)) & 1;
 
-            let bit_in_pixel = x_bit % (EMBEDDABLE_CHANNELS * lsbs);
+                let bit_in_chunk = bit_index / lsbs % CHUNK_SIZE;
+                let bit_in_channel = bit_index % lsbs;
 
-            let channel = bit_in_pixel / lsbs;
-            let bit_in_channel = bit_in_pixel % lsbs;
-
-            let pixel = container.get_pixel_mut(x as u32, y as u32);
-
-            let mask = !(1 << bit_in_channel);
-            pixel[channel] = (pixel[channel] & mask) | (bit << bit_in_channel);
-        }
-    }
+                let mask = !(1 << bit_in_channel);
+                chunk[bit_in_chunk] = (chunk[bit_in_chunk] & mask) | (bit << bit_in_channel);
+            }
+        });
 
     let mut output = Vec::new();
 
     let mut cursor = Cursor::new(&mut output);
 
-    container.write_to(&mut cursor, format)?;
+    image.write_to(&mut cursor, format)?;
 
     Ok(output)
 }
@@ -254,18 +273,21 @@ pub fn embed(
 pub fn extract(input: &[u8], lsbs: usize, seed: u64) -> StegResult<(Vec<u8>, String)> {
     let reader = ImageReader::new(Cursor::new(input)).with_guessed_format()?;
 
-    let container = reader.decode()?.to_rgb8();
+    let image = reader.decode()?.to_rgb8();
 
-    let width = container.width() as usize;
-    let height = container.height() as usize;
+    let width = image.width() as usize;
+    let height = image.height() as usize;
 
     // Potential overflow when calculating width_bits
-    let width_bits = width.checked_mul(EMBEDDABLE_CHANNELS)
+    let width_bits = width
+        .checked_mul(EMBEDDABLE_CHANNELS)
         .and_then(|res| res.checked_mul(lsbs))
-        .ok_or_else(|| StegError::CalculationOverflow(format!(
+        .ok_or_else(|| {
+            StegError::CalculationOverflow(format!(
             "Overflow calculating width_bits: width ({}) * EMBEDDABLE_CHANNELS ({}) * lsbs ({})",
             width, EMBEDDABLE_CHANNELS, lsbs
-        )))?;
+        ))
+        })?;
 
     // Potential overflow when calculating capacity_bits
     let capacity_bits = width_bits.checked_mul(height).ok_or_else(|| {
@@ -291,7 +313,7 @@ pub fn extract(input: &[u8], lsbs: usize, seed: u64) -> StegResult<(Vec<u8>, Str
         )));
     }
 
-    let length = read_bytes(&container, length_size, lsbs, seed)?;
+    let length = read_bytes(&image, length_size, lsbs, seed)?;
     let length = u32::from_le_bytes(length.try_into().unwrap()) as usize;
     debug!("Length: {} bytes", length);
 
@@ -303,7 +325,7 @@ pub fn extract(input: &[u8], lsbs: usize, seed: u64) -> StegResult<(Vec<u8>, Str
         )));
     }
 
-    let payload = read_bytes(&container, length + length_size, lsbs, seed)?;
+    let payload = read_bytes(&image, length + length_size, lsbs, seed)?;
     let payload = &payload[length_size..];
 
     let ext_len = payload[0] as usize;
@@ -364,12 +386,15 @@ fn read_bytes(
     let height = container.height() as usize;
 
     // Potential overflow when calculating width_bits
-    let width_bits = width.checked_mul(EMBEDDABLE_CHANNELS)
+    let width_bits = width
+        .checked_mul(EMBEDDABLE_CHANNELS)
         .and_then(|res| res.checked_mul(lsbs))
-        .ok_or_else(|| StegError::CalculationOverflow(format!(
+        .ok_or_else(|| {
+            StegError::CalculationOverflow(format!(
             "Overflow calculating width_bits: width ({}) * EMBEDDABLE_CHANNELS ({}) * lsbs ({})",
             width, EMBEDDABLE_CHANNELS, lsbs
-        )))?;
+        ))
+        })?;
 
     // Potential overflow when calculating capacity_bits
     let capacity_bits = width_bits.checked_mul(height).ok_or_else(|| {
@@ -400,34 +425,40 @@ fn read_bytes(
 
     let mut output = vec![0; length];
 
-    for (byte_index, byte) in output.iter_mut().enumerate() {
-        for bit_offset in 0..BITS_PER_BYTE {
-            // Potential overflow when calculating bit_index
-            let bit_index_sequential = byte_index.checked_mul(BITS_PER_BYTE)
-                .and_then(|res| res.checked_add(bit_offset))
-                .ok_or_else(|| StegError::CalculationOverflow(format!(
-                    "Overflow calculating sequential bit_index: byte_index ({}) * BITS_PER_BYTE ({}) + bit_offset ({})",
-                    byte_index, BITS_PER_BYTE, bit_offset
-                )))?;
+    output.chunks_mut(CHUNK_SIZE).enumerate().try_for_each(|(index, chunk)| -> StegResult<()> {
+        for (byte_index, byte) in chunk.iter_mut().enumerate() {
+            let byte_index = index * CHUNK_SIZE + byte_index;
 
-            let bit_index = order.index(bit_index_sequential);
+            for bit_offset in 0..BITS_PER_BYTE {
+                // Potential overflow when calculating bit_index
+                let bit_index_seq = byte_index.checked_mul(BITS_PER_BYTE)
+                    .and_then(|res| res.checked_add(bit_offset))
+                    .ok_or_else(|| StegError::CalculationOverflow(format!(
+                        "Overflow calculating sequential bit_index: byte_index ({}) * BITS_PER_BYTE ({}) + bit_offset ({})",
+                        byte_index, BITS_PER_BYTE, bit_offset
+                    )))?;
 
-            let y = bit_index / width_bits;
+                let bit_index = order.index(bit_index_seq);
 
-            let x_bit = bit_index % width_bits;
-            let x = x_bit / (EMBEDDABLE_CHANNELS * lsbs);
+                let y = bit_index / width_bits;
 
-            let bit_in_pixel = x_bit % (EMBEDDABLE_CHANNELS * lsbs);
+                let x_bit = bit_index % width_bits;
+                let x = x_bit / (EMBEDDABLE_CHANNELS * lsbs);
 
-            let channel = bit_in_pixel / lsbs;
-            let bit_in_channel = bit_in_pixel % lsbs;
+                let bit_in_pixel = x_bit % (EMBEDDABLE_CHANNELS * lsbs);
 
-            let pixel = container.get_pixel(x as u32, y as u32);
+                let channel = bit_in_pixel / lsbs;
+                let bit_in_channel = bit_in_pixel % lsbs;
 
-            let bit = (pixel[channel] >> bit_in_channel) & 1;
-            *byte = (*byte << 1) | bit;
+                let pixel = container.get_pixel(x as u32, y as u32);
+
+                let bit = (pixel[channel] >> bit_in_channel) & 1;
+                *byte = (*byte << 1) | bit;
+            }
         }
-    }
+
+        Ok(())
+    })?;
 
     Ok(output)
 }
