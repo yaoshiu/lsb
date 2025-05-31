@@ -707,6 +707,7 @@ dependencies = [
  "md5",
  "rand 0.9.1",
  "rand_pcg",
+ "rayon",
  "sha1",
  "sha2",
  "strum",
