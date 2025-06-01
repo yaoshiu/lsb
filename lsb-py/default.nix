@@ -1,6 +1,7 @@
 {
   buildPythonPackage,
   rustPlatform,
+  unittestCheckHook,
 }:
 buildPythonPackage rec {
   pname = "lsb-py";
@@ -19,5 +20,9 @@ buildPythonPackage rec {
   nativeBuildInputs = with rustPlatform; [
     cargoSetupHook
     maturinBuildHook
+  ];
+
+  nativeCheckInputs = [
+    unittestCheckHook
   ];
 }
