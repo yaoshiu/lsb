@@ -1,4 +1,4 @@
-{ rustPlatform, ... }:
+{ rustPlatform, installShellFiles, ... }:
 rustPlatform.buildRustPackage (_: {
   pname = "lsb-core";
   version = "0.1.0";
@@ -10,4 +10,12 @@ rustPlatform.buildRustPackage (_: {
   };
 
   buildAndTestSubdir = "lsb-core";
+
+  nativeBuildInputs = [ installShellFiles ];
+
+  postInstall = ''
+    for shell in bash fish zsh; do
+      installShellCompletion --cmd lsb-core --''${shell} <($out/bin/lsb-core completion $shell)
+    done
+  '';
 })

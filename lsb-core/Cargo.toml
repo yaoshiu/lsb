@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 blake3 = { version = "1.8.2", features = ["traits-preview"] }
 clap = { version = "4.5.38", features = ["derive"] }
+clap_complete = "4.5.52"
 digest = "0.10.7"
 env_logger = "0.11.8"
 image = "0.25.6"
@@ -24,3 +25,4 @@ rayon = "1.10.0"
 sha1 = "0.10.6"
 sha2 = "0.10.9"
 strum = { version = "0.27.1", features = ["derive"] }
+
