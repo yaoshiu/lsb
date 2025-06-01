@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use error::LsbError;
 use log::Level;
-use lsb_core::ImageFormat;
+use lsb_core::image::ImageFormat;
 use wasm_bindgen::prelude::*;
 
 /// Exposes the JavaScript `alert` function.

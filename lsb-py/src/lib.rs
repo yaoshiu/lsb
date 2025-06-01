@@ -3,7 +3,7 @@ mod error;
 use std::{borrow::Cow, str::FromStr};
 
 use error::LsbError;
-use lsb_core::{error::StegError, hash, ImageFormat};
+use lsb_core::{error::StegError, hash, image::ImageFormat};
 use pyo3::prelude::*;
 
 /// Embeds a payload into a container image.
