@@ -25,4 +25,10 @@ buildPythonPackage rec {
   nativeCheckInputs = [
     unittestCheckHook
   ];
+
+  unittestFlags = [
+    "-s"
+    "lsb-py"
+    "-v"
+  ];
 }
