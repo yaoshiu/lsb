@@ -46,9 +46,7 @@
 
             cargoDeps = pkgs.rustPlatform.importCargoLock {
               lockFile = final.src + "/Cargo.lock";
-              outputHashes = {
-                "binary-install-0.4.1" = "sha256-AqNbtTIjhmD9lMN7krjTHvxrbOK1Rty8/Z8OIR+zMCw=";
-              };
+              allowBuiltinFetchGit = true;
             };
 
             carghHash = null;
