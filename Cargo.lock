@@ -740,7 +740,6 @@ dependencies = [
 name = "lsb-py"
 version = "0.1.0"
 dependencies = [
- "blake3",
  "lsb-core",
  "pyo3",
  "pyo3-log",

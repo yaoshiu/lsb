@@ -6,17 +6,12 @@ extern crate wasm_bindgen_test;
 use lsb_js::ExtractResult;
 use wasm_bindgen_test::*;
 
-wasm_bindgen_test_configure!(run_in_browser);
+// wasm_bindgen_test_configure!(run_in_browser);
 
 const INPUT: &[u8] = include_bytes!("../../data/input.webp");
 const EXTENSION: &str = "webp";
 const CONTAINER: &[u8] = include_bytes!("../../data/container.webp");
 const EMBEDDED: &[u8] = include_bytes!("../../data/embedded.png");
-
-#[wasm_bindgen_test]
-fn pass() {
-    assert_eq!(1 + 1, 2);
-}
 
 #[wasm_bindgen_test]
 fn test_embed() {

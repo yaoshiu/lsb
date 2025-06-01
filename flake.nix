@@ -65,6 +65,7 @@
             ))
             maturin
             wasm-pack
+            nodejs
           ];
         };
 
