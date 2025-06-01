@@ -13,10 +13,8 @@ name = "lsb_py"
 crate-type = ["cdylib"]
 
 [dependencies]
-# The impure blake3 dumps python core
-blake3 = { version = "1.8.2", features = ["pure"] }
 lsb-core = { version = "0.1.0", path = "../lsb-core" }
-pyo3 = "0.24.0"
+pyo3 = "0.25.0"
 pyo3-log = "0.12.4"
 
 [features]
