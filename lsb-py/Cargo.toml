@@ -2,6 +2,10 @@
 name = "lsb-py"
 version = "0.1.0"
 edition = "2021"
+authors = [ "Fay Ash <yaoshiu@qq.com>" ]
+description = "Python bindings for the LSB core library"
+repository = "https://github.com/yaoshiu/lsb"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]

@@ -1,6 +1,10 @@
 [package]
 name = "lsb-core"
 version = "0.1.0"
+authors = [ "Fay Ash <yaoshiu@qq.com>" ]
+description = "A command-line tool for managing and analyzing Linux Standard Base (LSB) files."
+license = "MIT"
+repository = "https://github.com/yaoshiu/lsb"
 edition = "2024"
 
 [lib]

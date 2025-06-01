@@ -2,6 +2,9 @@
 name = "lsb-js"
 version = "0.1.0"
 authors = ["Fay Ash <yaoshiu@qq.com>"]
+description = "A JavaScript library for LSB (Lisp System Builder) that provides a WebAssembly interface."
+license = "MIT"
+repository = "https://github.com/yaoshiu/lsb"
 edition = "2018"
 
 [lib]
