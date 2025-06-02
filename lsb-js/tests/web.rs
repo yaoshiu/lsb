@@ -34,7 +34,7 @@ fn test_extract() {
 }
 
 #[wasm_bindgen_test]
-fn test_embed_extract() {
+fn test_embed_extract() -> Result<(), Box<dyn std::error::Error>> {
     let result = lsb_js::embed(
         INPUT,
         EXTENSION,
@@ -45,10 +45,12 @@ fn test_embed_extract() {
         Some("PNG".to_string()),
     );
     assert!(result.is_ok());
-    let result = result.unwrap();
+    let result = result?;
 
     let result = lsb_js::extract(&result, Some(1), Some(42));
     assert!(result.is_ok());
-    let ExtractResult(result, _) = result.unwrap();
+    let ExtractResult(result, _) = result?;
     assert_eq!(result, INPUT);
+
+    Ok(())
 }

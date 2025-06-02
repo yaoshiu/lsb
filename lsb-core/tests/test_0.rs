@@ -31,7 +31,7 @@ fn test_extract() {
 }
 
 #[test]
-fn test_embed_extract() {
+fn test_embed_extract() -> Result<(), Box<dyn std::error::Error>> {
     let hash = Hash::Sha256;
     let seed = 42;
     let lsbs = 1;
@@ -45,7 +45,7 @@ fn test_embed_extract() {
         embedded_result.err()
     );
 
-    let embedded_data = embedded_result.unwrap();
+    let embedded_data = embedded_result?;
 
     let extracted_result = extract(&embedded_data, lsbs, seed);
 
@@ -55,10 +55,12 @@ fn test_embed_extract() {
         extracted_result.err()
     );
 
-    let extracted_data = extracted_result.unwrap().0;
+    let extracted_data = extracted_result?.0;
 
     assert_eq!(
         INPUT, &extracted_data,
         "Extracted data does not match input"
     );
+
+    Ok(())
 }
